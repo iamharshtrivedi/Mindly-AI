@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+  --color-serene-50: #fdfcf9;
+  --color-serene-100: #f7f5ef;
+  --color-serene-200: #eeebe1;
+  --color-serene-300: #dfdaca;
+  --color-serene-400: #c9c1ab;
+  --color-serene-500: #b4aa8d;
+  --color-serene-600: #9e9173;
+  --color-serene-700: #847960;
+  --color-serene-800: #6c6350;
+  --color-serene-900: #5a5244;
+  --color-serene-950: #2e2a22;
+}
+
+@layer base {
+  body {
+    @apply font-sans antialiased text-slate-900 bg-serene-50 dark:bg-slate-950 transition-colors duration-500;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .glass-surface {
+    @apply bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-white/40 dark:border-slate-800/50 shadow-xl shadow-indigo-100/10 dark:shadow-none;
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "collections": [
+    {
+      "collectionId": "users",
+      "description": "User profiles and data",
+      "fields": [
+        {
+          "dataType": "string",
+          "description": "User's display name",
+          "fieldName": "displayName"
+        },
+        {
+          "dataType": "string",
+          "description": "User's email",
+          "fieldName": "email"
+        },
+        {
+          "dataType": "timestamp",
+          "description": "Last seen timestamp",
+          "fieldName": "lastSeen"
+        }
+      ],
+      "subcollections": [
+        {
+          "collectionId": "sessions",
+          "description": "Journaling sessions for the user",
+          "fields": [
+            {
+              "dataType": "string",
+              "description": "Summary of the session",
+              "fieldName": "summary"
+            },
+            {
+              "dataType": "timestamp",
+              "description": "When the session started",
+              "fieldName": "createdAt"
+            },
+            {
+              "dataType": "timestamp",
+              "description": "When the last message was sent",
+              "fieldName": "updatedAt"
+            }
+          ],
+          "subcollections": [
+            {
+              "collectionId": "messages",
+              "description": "Messages within a journaling session",
+              "fields": [
+                {
+                  "dataType": "string",
+                  "description": "The message content",
+                  "fieldName": "content"
+                },
+                {
+                  "dataType": "string",
+                  "description": "Role: user or assistant",
+                  "fieldName": "role"
+                },
+                {
+                  "dataType": "timestamp",
+                  "description": "When the message was sent",
+                  "fieldName": "timestamp"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

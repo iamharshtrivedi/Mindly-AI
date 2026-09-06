@@ -1,11 +1,23 @@
-<div align="center">
+# Mindly AI
+A secure, AI-powered journaling application for deep reflections, brainstorming, and personal growth using Gemini.
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+## Prerequisites
+- Google Cloud Project with Cloud Run and Secret Manager enabled.
+- Firebase project with Firestore and Authentication (Google Sign-In) enabled.
 
-  <h1>Built with AI Studio</h2>
+## Setup
+1. **Secrets**:
+   - Create a secret `GEMINI_API_KEY` in Secret Manager.
+   - Grant the Cloud Run service account `roles/secretmanager.secretAccessor`.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+2. **Environment Variables**:
+   Set the following in Cloud Run:
+   - `GEMINI_API_KEY`
+   - `FIREBASE_DATABASE_ID` (if using non-default)
+   - `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, etc.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+3. **Firestore Rules**:
+   Deploy the provided `firestore.rules`.
 
-</div>
+## Verification
+- Run `gcloud run services update <SERVICE_NAME> --update-labels=dev-tutorial=cloud-run-ai-challenge --region=<REGION>`
