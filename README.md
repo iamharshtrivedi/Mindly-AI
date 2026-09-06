@@ -1,4 +1,4 @@
-# Mindly AI — Your Intelligent Reflection Companion
+# Mindly AI — Your Intelligent Journaling Companion
 
 Mindly AI is a production-grade, AI-powered journaling application designed to transform solitary reflection into an interactive journey of self-discovery. Built on a secure full-stack architecture, it leverages the **Gemini 2.0 Flash** model to provide real-time cognitive coaching, pattern recognition, and deep-dive prompts.
 

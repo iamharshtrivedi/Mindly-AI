@@ -1,7 +1,8 @@
 import express from "express";
 import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
 import cors from "cors";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -9,6 +10,30 @@ import { getAuth } from "firebase-admin/auth";
 import dotenv from "dotenv";
 
 dotenv.config();
+
+// ESM compatibility for __dirname
+let _dirname = "";
+try {
+  // @ts-ignore - import.meta is ESM only
+  if (import.meta && import.meta.url) {
+    const _filename = fileURLToPath(import.meta.url);
+    _dirname = path.dirname(_filename);
+  }
+} catch (e) {
+  // Expected to fail in CJS
+}
+
+// Use a unique name to avoid conflict with Node's global __dirname in CJS
+const getActualDirname = () => {
+  try {
+    // @ts-ignore - __dirname is CJS only
+    return __dirname;
+  } catch (e) {
+    return _dirname;
+  }
+};
+
+const currentDir = getActualDirname();
 
 // Initialize Firebase Admin
 function getAdminApp() {
@@ -101,26 +126,6 @@ async function generateGeminiResponse(messages: { role: string; content: string 
   throw lastError || new Error("All models failed to respond");
 }
 
-function serveStatic(app: express.Express) {
-  const distPath = path.resolve(process.cwd(), "dist");
-  console.log(`[Server] Serving static assets from: ${distPath}`);
-  
-  app.use(express.static(distPath));
-
-  app.get("*", (req, res, next) => {
-    if (req.url.startsWith("/api")) {
-      return next();
-    }
-    const indexPath = path.join(distPath, "index.html");
-    res.sendFile(indexPath, (err) => {
-      if (err) {
-        console.error(`[Server] Error sending index.html from ${indexPath}:`, err);
-        res.status(404).send("Application shell not found.");
-      }
-    });
-  });
-}
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -128,29 +133,35 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
+  // Health check for GFE/Cloud Run
+  app.get("/_health", (req, res) => res.send("ok"));
+
   // Request logging
   app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     next();
   });
 
-  // Health check
+  // API routes
   app.get("/api/health", (req, res) => {
+    const root = process.cwd();
+    const distPath = path.join(root, "dist");
+    const indexPath = path.join(distPath, "index.html");
     res.json({ 
       status: "ok", 
       timestamp: new Date().toISOString(),
       firebaseInitialized: !!adminApp,
-      env: process.env.NODE_ENV || 'unknown'
+      env: process.env.NODE_ENV || 'unknown',
+      cwd: root,
+      distPath,
+      indexExists: fs.existsSync(indexPath),
+      distFiles: fs.existsSync(distPath) ? fs.readdirSync(distPath) : [],
+      rootFiles: fs.readdirSync(root)
     });
   });
 
   app.get("/api/ping", (req, res) => {
     res.send("pong");
-  });
-
-  // Root check
-  app.get("/server-check", (req, res) => {
-    res.send("Server is running and healthy");
   });
 
   // Auth verification test
@@ -184,92 +195,41 @@ async function startServer() {
       const { userId, sessionId, messages } = body;
 
       if (!userId || !sessionId || !messages || !Array.isArray(messages)) {
-        console.warn("[Chat] Bad Request: Missing fields");
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // Verify user via Auth header
+      // Verify user
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({ error: "Unauthorized - Missing token" });
+        return res.status(401).json({ error: "Unauthorized" });
       }
 
       const idToken = authHeader.split("Bearer ")[1];
-      
-      let decodedToken;
-      try {
-        if (!adminApp) {
-          console.error("[Auth] Firebase Admin not initialized");
-          return res.status(503).json({ error: "Auth service unavailable" });
-        }
-        const auth = getAuth(adminApp);
-        decodedToken = await auth.verifyIdToken(idToken);
-        if (decodedToken.uid !== userId) {
-          console.warn(`[Auth] UID mismatch: ${decodedToken.uid} vs ${userId}`);
-          return res.status(403).json({ error: "Forbidden - User ID mismatch" });
-        }
-      } catch (err: any) {
-        console.error("[Auth] Verification Error:", err.message);
-        return res.status(401).json({ error: "Unauthorized - Invalid token", message: err.message });
-      }
+      if (!adminApp) return res.status(503).json({ error: "Auth service unavailable" });
+      const auth = getAuth(adminApp);
+      const decodedToken = await auth.verifyIdToken(idToken);
+      if (decodedToken.uid !== userId) return res.status(403).json({ error: "Forbidden" });
 
       const assistantText = await generateGeminiResponse(messages);
       
-      if (!db) {
-        console.error("[Firestore] Database not initialized");
-        return res.json({ content: assistantText });
-      }
-
-      // Save to Firestore server-side for integrity
-      try {
-        const sessionRef = db.collection("users").doc(userId).collection("sessions").doc(sessionId);
-        const messagesRef = sessionRef.collection("messages");
-
-        // Save Assistant Message
-        const assistantDoc = await messagesRef.add({
-          content: assistantText,
-          role: "assistant",
-          timestamp: FieldValue.serverTimestamp()
-        });
-
-        // Update session summary if it's still the default or placeholder
-        const sessionDoc = await sessionRef.get();
-        const currentSummary = sessionDoc.data()?.summary;
-        const placeholders = ["New Reflection", "New Journal", "Active Journal", "Untitled journal", "Untitled Session"];
-        if (!currentSummary || placeholders.includes(currentSummary)) {
-          try {
-            const summaryPrompt = [
-              { role: "user", content: `Provide a very short, 3-5 word summary for this journal: "${messages[messages.length-1].content}"` }
-            ];
-            const summary = await generateGeminiResponse(summaryPrompt);
-            await sessionRef.update({
-              summary: summary.replace(/["']/g, "").trim(),
-              updatedAt: FieldValue.serverTimestamp()
-            });
-          } catch (e) {
-            console.error("[Firestore] Summary generation failed:", e);
-            await sessionRef.update({ updatedAt: FieldValue.serverTimestamp() });
-          }
-        } else {
+      if (db) {
+        try {
+          const sessionRef = db.collection("users").doc(userId).collection("sessions").doc(sessionId);
+          await sessionRef.collection("messages").add({
+            content: assistantText,
+            role: "assistant",
+            timestamp: FieldValue.serverTimestamp()
+          });
           await sessionRef.update({ updatedAt: FieldValue.serverTimestamp() });
+        } catch (e) {
+          console.error("[Firestore] Write failed:", e);
         }
-
-        res.json({ 
-          messageId: assistantDoc.id,
-          content: assistantText 
-        });
-      } catch (dbErr: any) {
-        console.error("[Firestore] Write error:", dbErr);
-        // Fallback: still send assistant text if only DB fails
-        res.json({ content: assistantText });
       }
 
+      res.json({ content: assistantText });
     } catch (error: any) {
-      console.error("[Chat API] Critical Error:", error);
-      res.status(500).json({ 
-        error: "Internal Server Error",
-        message: error.message 
-      });
+      console.error("[Chat API] Error:", error);
+      res.status(500).json({ error: "Internal Server Error", message: error.message });
     }
   });
 
@@ -320,52 +280,67 @@ async function startServer() {
 
       const aiResponse = await generateGeminiResponse([{ role: "user", content: prompt }]);
       res.json({ content: aiResponse });
-
     } catch (error: any) {
       console.error("[Interact API] Error:", error);
       res.status(500).json({ error: "Internal Server Error", message: error.message });
     }
   });
 
-  // Vite middleware for development
+  // Serve static files
   const isProd = process.env.NODE_ENV === "production";
+  const root = process.cwd();
+  const distPath = path.join(root, "dist");
+
+  console.log(`[Server] Mode: ${isProd ? "PRODUCTION" : "DEVELOPMENT"}`);
+  console.log(` - Root: ${root}`);
+  console.log(` - Dist: ${distPath}`);
   
   if (!isProd) {
-    console.log("[Server] Starting in development mode with Vite middleware...");
     try {
+      const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa",
       });
       app.use(vite.middlewares);
     } catch (e) {
-      console.warn("[Server] Vite initialization failed, falling back to static serving:", e);
-      serveStatic(app);
+      console.warn("[Server] Vite failed, falling back to static serving");
+      mountStatic(app, distPath);
     }
   } else {
-    serveStatic(app);
+    mountStatic(app, distPath);
   }
 
-  // Global error handler
-  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error("!!! CRITICAL SERVER ERROR !!!");
-    console.error("Method:", req.method);
-    console.error("URL:", req.url);
-    console.error("Error:", err);
-    
-    res.status(500).json({ 
-      error: "Internal Server Error", 
-      message: err.message,
-      path: req.url
+  function mountStatic(app: express.Express, staticPath: string) {
+    console.log(`[Server] Mounting static files from: ${staticPath}`);
+    app.use(express.static(staticPath));
+
+    app.get("*", (req, res, next) => {
+      if (req.url.startsWith("/api") || req.url === "/_health") return next();
+      
+      const indexPath = path.join(staticPath, "index.html");
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        console.error(`[Server] Index not found at ${indexPath}`);
+        // Diagnostic fallback for the user
+        res.status(404).json({
+          error: "Application shell missing",
+          expectedPath: indexPath,
+          cwd: process.cwd(),
+          distExists: fs.existsSync(staticPath),
+          distFiles: fs.existsSync(staticPath) ? fs.readdirSync(staticPath) : [],
+          rootFiles: fs.readdirSync(process.cwd())
+        });
+      }
     });
-  });
+  }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Server] Mindly AI backend running on port ${PORT}`);
-    console.log(`[Server] Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`[Server] Running on port ${PORT}`);
   });
 }
 
 startServer().catch(err => {
-  console.error("CRITICAL: Server failed to start:", err);
+  console.error("Server failed:", err);
 });
