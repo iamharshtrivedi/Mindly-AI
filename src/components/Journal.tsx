@@ -38,7 +38,7 @@ import { Message } from '../types';
 import { JournalInsights } from './JournalInsights';
 
 export interface JournalHandle {
-  startNewSession: () => Promise<void>;
+  startNewSession: () => void;
   loadSession: (sessionId: string) => void;
 }
 

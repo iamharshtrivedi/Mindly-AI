@@ -15,7 +15,7 @@ function getAdminApp() {
   if (getApps().length) return getApps()[0];
   try {
     const app = initializeApp({
-      projectId: "mindly-ai-7af1f"
+      projectId: process.env.FIREBASE_PROJECT_ID || "mindly-ai-7af1f"
     });
     console.log("[Firebase] Admin initialized successfully");
     return app;
@@ -30,7 +30,8 @@ const adminApp = getAdminApp();
 function getDb() {
   if (!adminApp) return null;
   try {
-    return getFirestore(adminApp, "ai-studio-mindlyai-48afac4e-73f6-4c7b-8522-922f9f291fbc");
+    const databaseId = process.env.FIREBASE_DATABASE_ID || "ai-studio-mindlyai-48afac4e-73f6-4c7b-8522-922f9f291fbc";
+    return getFirestore(adminApp, databaseId);
   } catch (error) {
     console.error("[Firebase] Firestore initialization error:", error);
     return null;

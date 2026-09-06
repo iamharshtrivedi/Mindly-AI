@@ -216,8 +216,9 @@ export const Settings: React.FC<SettingsProps> = ({ onTabChange, onUpgrade }) =>
           <SettingsSection title="Share The Love">
             <SettingsItem 
               icon={<Share2 size={18} />} 
-              label="Share Mindly AI" 
-              sublabel="Know someone who could benefit from Mindly AI? Share the app!" 
+              label="Visit Mindly AI" 
+              sublabel="https://mindly-ai.ai.studio" 
+              onClick={() => window.open('https://mindly-ai.ai.studio', '_blank')}
             />
           </SettingsSection>
 

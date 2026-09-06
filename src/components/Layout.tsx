@@ -165,9 +165,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
             >
               Logout
             </button>
-            <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-bold text-slate-400 dark:text-slate-500">
-              V1.2.0
-            </div>
+            <a 
+              href="https://mindly-ai.ai.studio" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-full text-[10px] font-bold text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 transition-colors"
+            >
+              mindly-ai.ai.studio
+            </a>
           </div>
         </div>
       </aside>
@@ -249,7 +254,7 @@ const MobileNavItem: React.FC<{ icon: React.ReactNode; active?: boolean; onClick
         : 'text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
     }`}
   >
-    {React.cloneElement(icon as React.ReactElement, { size: 20 })}
+    {React.cloneElement(icon as React.ReactElement<any>, { size: 20 })}
   </button>
 );
 

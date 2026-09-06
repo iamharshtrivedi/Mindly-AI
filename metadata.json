@@ -1,6 +1,6 @@
 {
   "name": "Mindly AI",
-  "description": "A secure, AI-powered journaling application for deep reflections, brainstorming, and personal growth using Gemini.",
+  "description": "A secure, AI-powered journaling application for deep reflections, brainstorming, and personal growth using Gemini. Live: https://mindly-ai.ai.studio",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
