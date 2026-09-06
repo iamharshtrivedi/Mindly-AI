@@ -13,9 +13,14 @@ dotenv.config();
 // Initialize Firebase Admin
 function getAdminApp() {
   if (getApps().length) return getApps()[0];
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  if (!projectId) {
+    console.error("[Firebase] FIREBASE_PROJECT_ID is missing from environment");
+    return null;
+  }
   try {
     const app = initializeApp({
-      projectId: process.env.FIREBASE_PROJECT_ID || "mindly-ai-7af1f"
+      projectId: projectId
     });
     console.log("[Firebase] Admin initialized successfully");
     return app;
@@ -29,8 +34,12 @@ const adminApp = getAdminApp();
 
 function getDb() {
   if (!adminApp) return null;
+  const databaseId = process.env.FIREBASE_DATABASE_ID;
+  if (!databaseId) {
+    console.error("[Firebase] FIREBASE_DATABASE_ID is missing from environment");
+    return null;
+  }
   try {
-    const databaseId = process.env.FIREBASE_DATABASE_ID || "ai-studio-mindlyai-48afac4e-73f6-4c7b-8522-922f9f291fbc";
     return getFirestore(adminApp, databaseId);
   } catch (error) {
     console.error("[Firebase] Firestore initialization error:", error);
@@ -92,6 +101,26 @@ async function generateGeminiResponse(messages: { role: string; content: string 
   throw lastError || new Error("All models failed to respond");
 }
 
+function serveStatic(app: express.Express) {
+  const distPath = path.resolve(process.cwd(), "dist");
+  console.log(`[Server] Serving static assets from: ${distPath}`);
+  
+  app.use(express.static(distPath));
+
+  app.get("*", (req, res, next) => {
+    if (req.url.startsWith("/api")) {
+      return next();
+    }
+    const indexPath = path.join(distPath, "index.html");
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        console.error(`[Server] Error sending index.html from ${indexPath}:`, err);
+        res.status(404).send("Application shell not found.");
+      }
+    });
+  });
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -110,8 +139,13 @@ async function startServer() {
     res.json({ 
       status: "ok", 
       timestamp: new Date().toISOString(),
-      firebaseInitialized: !!adminApp
+      firebaseInitialized: !!adminApp,
+      env: process.env.NODE_ENV || 'unknown'
     });
+  });
+
+  app.get("/api/ping", (req, res) => {
+    res.send("pong");
   });
 
   // Root check
@@ -294,26 +328,22 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  const isProd = process.env.NODE_ENV === "production";
+  
+  if (!isProd) {
     console.log("[Server] Starting in development mode with Vite middleware...");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    try {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (e) {
+      console.warn("[Server] Vite initialization failed, falling back to static serving:", e);
+      serveStatic(app);
+    }
   } else {
-    console.log("[Server] Starting in production mode...");
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-
-    // Catch-all route for SPA in production
-    app.get("*", (req, res, next) => {
-      // If it starts with /api, it's a missing API route, don't serve index.html
-      if (req.url.startsWith('/api')) {
-        return next();
-      }
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    serveStatic(app);
   }
 
   // Global error handler
