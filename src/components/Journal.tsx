@@ -886,7 +886,7 @@ export const Journal = forwardRef<JournalHandle, JournalProps>(({ onTabChange },
                 key={session.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="glass-surface rounded-[24px] md:rounded-[32px] p-5 md:p-6 flex items-start gap-4 md:gap-6 hover:scale-[1.01] transition-all cursor-pointer group relative overflow-hidden"
+                className="glass-surface rounded-[24px] md:rounded-[32px] p-5 md:p-6 flex items-start gap-4 md:gap-6 hover:scale-[1.01] transition-all cursor-pointer group relative"
                 onClick={() => loadSession(session.id)}
               >
                 {/* Date Badge */}
