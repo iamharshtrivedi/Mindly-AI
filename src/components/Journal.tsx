@@ -265,6 +265,8 @@ export const Journal = forwardRef<JournalHandle, JournalProps>(({ onTabChange },
       }
       setIsSessionLoading(true);
       setAiInteractions([]);
+      setMessages([]);
+      setInput('');
       setView('entry');
       return id;
     });
@@ -303,7 +305,13 @@ export const Journal = forwardRef<JournalHandle, JournalProps>(({ onTabChange },
 
   // Listen for messages in the current session
   useEffect(() => {
-    if (!user || !sessionId) return;
+    if (!user || !sessionId) {
+      setMessages([]);
+      return;
+    }
+
+    // Clear previous session's messages immediately when switching
+    setMessages([]);
 
     const q = query(
       collection(db, 'users', user.uid, 'sessions', sessionId, 'messages'),
@@ -379,8 +387,13 @@ export const Journal = forwardRef<JournalHandle, JournalProps>(({ onTabChange },
   useEffect(() => {
     if (view === 'entry' && messages.length > 0 && !isLoading && sessionId) {
       const firstUserMsg = messages.find(m => m.role === 'user');
-      if (firstUserMsg && !input) { // Only sync if input is empty to avoid overwriting while typing
-        setInput(firstUserMsg.content);
+      if (firstUserMsg) {
+        // If the current input is empty or different from the first message of the loaded session, sync it.
+        // This ensures we show the correct content when loading a session, but don't overwrite if the user 
+        // has already started typing something different in the SAME session.
+        if (!input || (input !== firstUserMsg.content && messages.length === 1)) {
+          setInput(firstUserMsg.content);
+        }
       }
     }
   }, [view, messages, isLoading, sessionId]); // Removed input from dependencies
